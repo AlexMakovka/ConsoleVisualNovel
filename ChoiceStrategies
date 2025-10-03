@@ -1,0 +1,140 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <memory>
+
+using namespace std;
+
+// ================= Observer =================
+class IObserver {
+public:
+    virtual void update(const string& message) = 0;
+};
+
+class ConsoleLogger : public IObserver {
+public:
+    void update(const string& message) override {
+        cout << "[LOG]: " << message << endl;
+    }
+};
+
+// ================= Strategy =================
+class ICharacterBehavior {
+public:
+    virtual void react(const string& choice) = 0;
+};
+
+class FriendlyBehavior : public ICharacterBehavior {
+public:
+    void react(const string& choice) override {
+        cout << "Персонаж улыбается и соглашается.\n";
+    }
+};
+
+class AngryBehavior : public ICharacterBehavior {
+public:
+    void react(const string& choice) override {
+        cout << "Персонаж сердито кричит!\n";
+    }
+};
+
+// ================= State =================
+class Game;
+
+class IGameState {
+public:
+    virtual void handle(Game& game) = 0;
+};
+
+class Game {
+    shared_ptr<IGameState> state;
+    vector<IObserver*> observers;
+public:
+    void setState(shared_ptr<IGameState> newState) {
+        state = newState;
+    }
+
+    void attach(IObserver* observer) {
+        observers.push_back(observer);
+    }
+
+    void notify(const string& message) {
+        for (auto obs : observers)
+            obs->update(message);
+    }
+
+    void run() {
+        while (state) {
+            state->handle(*this);
+        }
+    }
+};
+
+// ================= Конкретные состояния =================
+class DialogState; // Предварительное объявление
+class EndState;    // Предварительное объявление
+
+class MainMenuState : public IGameState {
+public:
+    void handle(Game& game) override;
+};
+
+class DialogState : public IGameState {
+public:
+    void handle(Game& game) override;
+};
+
+class EndState : public IGameState {
+public:
+    void handle(Game& game) override {
+        cout << "=== Конец игры ===\n";
+        game.setState(nullptr); // Завершаем игру
+        game.notify("Игра завершена");
+    }
+};
+
+// ================= Реализация MainMenuState =================
+void MainMenuState::handle(Game& game) {
+    cout << "=== Главное меню ===\n1. Начать игру\n2. Выход\nВыбор: ";
+    int choice;
+    cin >> choice;
+    if (choice == 1) {
+        game.setState(make_shared<DialogState>());
+        game.notify("Игрок начал игру");
+    } else {
+        game.setState(nullptr);
+        game.notify("Игрок вышел из игры");
+    }
+}
+
+// ================= Реализация DialogState =================
+void DialogState::handle(Game& game) {
+    cout << "Персонаж говорит: Привет! Как ты сегодня?\n";
+    cout << "1. Хорошо\n2. Плохо\nВыбор: ";
+    int choice;
+    cin >> choice;
+
+    shared_ptr<ICharacterBehavior> behavior;
+    if (choice == 1)
+        behavior = make_shared<FriendlyBehavior>();
+    else
+        behavior = make_shared<AngryBehavior>();
+
+    behavior->react(to_string(choice));
+
+    game.notify("Диалог завершен");
+    game.setState(make_shared<EndState>());
+}
+
+// ================= Main =================
+int main() {
+    Game game;
+    ConsoleLogger logger;
+
+    game.attach(&logger);
+    game.setState(make_shared<MainMenuState>());
+
+    game.run();
+
+    return 0;
+}
